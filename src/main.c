@@ -1,8 +1,6 @@
 #include <pspkernel.h>
 #include <pspdisplay.h>
 #include <pspctrl.h>
-#include <pspgu.h>
-#include <pspgum.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -12,7 +10,6 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 enum { SCREEN_W = 480, SCREEN_H = 272, CHAR_W = 8, CHAR_H = 8, VRAM_STRIDE = 512 };
 
 static uint32_t *g_vram = (uint32_t*)0x44000000;
-static unsigned int __attribute__((aligned(16))) gu_list[262144];
 
 // Minimal 8x8 glyphs for the letters we need
 static const uint8_t glyph_space[8] = {0,0,0,0,0,0,0,0};
@@ -80,46 +77,6 @@ static void draw_text(int x, int y, const char *s, uint32_t color) {
     }
 }
 
-typedef struct {
-    unsigned int color;
-    float x;
-    float y;
-    float z;
-} Vertex;
-
-static void gu_init(void) {
-    sceGuInit();
-    sceGuStart(GU_DIRECT, gu_list);
-    sceGuDrawBuffer(GU_PSM_8888, (void*)0x44000000, VRAM_STRIDE);
-    sceGuDispBuffer(SCREEN_W, SCREEN_H, (void*)0x44000000, VRAM_STRIDE);
-    sceGuOffset(2048 - (SCREEN_W / 2), 2048 - (SCREEN_H / 2));
-    sceGuViewport(2048, 2048, SCREEN_W, SCREEN_H);
-    sceGuDisable(GU_DEPTH_TEST);
-    sceGuDisable(GU_TEXTURE_2D);
-    sceGuFinish();
-    sceGuSync(0, 0);
-    sceGuDisplay(GU_TRUE);
-}
-
-static void gu_clear(uint32_t color) {
-    sceGuStart(GU_DIRECT, gu_list);
-    sceGuClearColor(color);
-    sceGuClear(GU_COLOR_BUFFER_BIT);
-    sceGuFinish();
-    sceGuSync(0, 0);
-}
-
-static void gu_fill_rect(int x, int y, int w, int h, uint32_t color) {
-    Vertex *v = (Vertex*)sceGuGetMemory(2 * sizeof(Vertex));
-    v[0].color = color; v[0].x = (float)x;       v[0].y = (float)y;       v[0].z = 0.0f;
-    v[1].color = color; v[1].x = (float)(x + w); v[1].y = (float)(y + h); v[1].z = 0.0f;
-
-    sceGuStart(GU_DIRECT, gu_list);
-    sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, NULL, v);
-    sceGuFinish();
-    sceGuSync(0, 0);
-}
-
 int main(int argc, char *argv[]) {
     (void)argc; (void)argv;
 
@@ -128,9 +85,8 @@ int main(int argc, char *argv[]) {
     sceDisplaySetMode(0, SCREEN_W, SCREEN_H);
     sceDisplaySetFrameBuf((void*)0x44000000, VRAM_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_8888, PSP_DISPLAY_SETBUF_IMMEDIATE);
 
-    gu_init();
-    gu_clear(0xFF000000); // black
-    gu_fill_rect(40, 40, 120, 60, 0xFF00AAFF); // light blue rectangle
+    clear_screen(0xFF000000); // black
+    fill_rect(40, 40, 120, 60, 0xFF00AAFF); // light blue rectangle
 
     const int msg_len = (int)strlen(msg);
     const int text_w = msg_len * CHAR_W;

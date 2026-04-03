@@ -10,7 +10,7 @@ PSP_FW_VERSION = 661
 
 LIBDIR =
 LDFLAGS =
-LIBS = -lpspdisplay -lpspctrl -lpspkernel -lpspgu -lpspgum -lpspge
+LIBS = -lpspdisplay -lpspctrl -lpspkernel
 
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = Hello World Centered
