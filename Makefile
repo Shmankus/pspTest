@@ -1,7 +1,8 @@
 TARGET = hello_world
-OBJS = src/main.o
+OBJS = src/main.o src/renderables.o
 
-INCDIR =
+PSPDEV=$(shell psp-config --pspdev-path)
+INCDIR = $(PSPDEV)/psp/include
 CFLAGS = -O2 -G0 -Wall
 CXXFLAGS = $(CFLAGS)
 ASFLAGS = $(CFLAGS)
@@ -9,7 +10,7 @@ ASFLAGS = $(CFLAGS)
 PSP_FW_VERSION = 661
 PSP_LARGE_MEMORY = 0
 
-LIBDIR =
+LIBDIR = $(PSPDEV)/psp/lib
 LDFLAGS =
 LIBS = -lpspgu -lpspgum
 EXTRA_TARGETS = EBOOT.PBP

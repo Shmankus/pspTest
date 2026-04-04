@@ -3,17 +3,22 @@
 #include <pspctrl.h>
 #include <pspgu.h>
 #include <pspgum.h>
+#include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-
+#include "font.c"
+#include "renderables.c"
 
 // TO-FIX
 // - Ball can get stuck inside of the rectangle, create a top and bottom collision check
 
 // TO-DO
-// - add text to show score
+// - add an angle on how the ball gets bounces based on how far along the paddle it is
 
+const int AI_ENABLED = 1;
+unsigned int gameRunning = 1;
 
 PSP_MODULE_INFO("HelloWorldCentered", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -26,14 +31,6 @@ enum
 };
 
 static unsigned int __attribute__((aligned(16))) gu_list[262144];
-
-typedef struct
-{
-    unsigned int color;
-    float x;
-    float y;
-    float z;
-} Vertex;
 
 typedef struct
 {
@@ -54,34 +51,8 @@ typedef struct
     float height;
     float width;
     float speed;
+    int score
 } Player;
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-static void circle(float cx, float cy, float r, unsigned int color, int segments)
-{
-    Vertex *v = (Vertex *)sceGuGetMemory((segments + 2) * sizeof(Vertex));
-
-    v[0].color = color;
-    v[0].x = cx;
-    v[0].y = cy;
-    v[0].z = 0.0f;
-
-    for (int i = 0; i <= segments; i++)
-    {
-        float t = (2.0f * (float)M_PI * i) / segments;
-        v[i + 1].color = color;
-        v[i + 1].x = cx + cosf(t) * r;
-        v[i + 1].y = cy + sinf(t) * r;
-        v[i + 1].z = 0.0f;
-    }
-
-    sceGuDrawArray(GU_TRIANGLE_FAN,
-                   GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D,
-                   segments + 2, NULL, v);
-}
 
 int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
 {
@@ -91,6 +62,7 @@ int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
     {
         ball->x = SCREEN_W / 2.0f;
         ball->y = SCREEN_H / 2.0f;
+        rightPlayer->score++;
     }
     else if ((ball->y + ball->radius > leftPlayer->y - leftPlayer->height / 2.0f) && (ball->y - ball->radius < leftPlayer->y + leftPlayer->height / 2.0f))
     {
@@ -105,6 +77,7 @@ int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
     {
         ball->x = SCREEN_W / 2.0f;
         ball->y = SCREEN_H / 2.0f;
+        leftPlayer->score++;
     }
     else if ((ball->y + ball->radius > rightPlayer->y - rightPlayer->height / 2.0f) && (ball->y - ball->radius < rightPlayer->y + rightPlayer->height / 2.0f))
     {
@@ -121,8 +94,9 @@ int render(Player *leftPlayer, Player *rightPlayer, Ball *ball)
 {
     // Draw every frame and swap buffers
     sceGuStart(GU_DIRECT, gu_list);
-    sceGuClearColor(0xFF000000);
+    sceGuClearColor(0xFF330033);
     sceGuClear(GU_COLOR_BUFFER_BIT);
+    sceGuDisable(GU_TEXTURE_2D);
 
     // Right side player that has movement functionality
     Vertex *controllablePlayerVertices = (Vertex *)sceGuGetMemory(2 * sizeof(Vertex));
@@ -140,16 +114,26 @@ int render(Player *leftPlayer, Player *rightPlayer, Ball *ball)
     Vertex *aiPlayerVertices = (Vertex *)sceGuGetMemory(2 * sizeof(Vertex));
     aiPlayerVertices[0].color = 0xFFFF0000;
     aiPlayerVertices[0].x = leftPlayer->x;
-    aiPlayerVertices[0].y = (SCREEN_H / 2.0f - leftPlayer->height / 2.0f);
+    aiPlayerVertices[0].y = leftPlayer->y - (leftPlayer->height / 2.0f);
     aiPlayerVertices[0].z = 0.0f;
     aiPlayerVertices[1].color = 0xFFFF0000;
     aiPlayerVertices[1].x = leftPlayer->x + leftPlayer->width;
-    aiPlayerVertices[1].y = (SCREEN_H / 2.0f + leftPlayer->height / 2.0f);
+    aiPlayerVertices[1].y = leftPlayer->y + leftPlayer->height / 2.0f;
     aiPlayerVertices[1].z = 0.0f;
     sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, NULL, aiPlayerVertices);
 
     // Draw the ball in the center of the screen
     circle(ball->x, ball->y, ball->radius, ball->color, ball->segments);
+
+    sceGuEnable(GU_TEXTURE_2D); // starts for text
+    // Write score to screen
+    char leftScore[3];
+    snprintf(leftScore, sizeof(leftScore), "%i", leftPlayer->score);
+    draw_text(leftScore, (SCREEN_W - measure_text_width(leftScore)) / 4.0f, (SCREEN_H - 16) / 2, 0xFFFFFFFF);
+    char rightScore[3];
+    snprintf(rightScore, sizeof(rightScore), "%i", rightPlayer->score);
+    draw_text(rightScore, ((SCREEN_W - (measure_text_width(rightScore)) / 2.0f)) * .75f, (SCREEN_H - 16) / 2, 0xFFFFFFFF);
+    sceGuDisable(GU_TEXTURE_2D); // ends for text
 
     sceGuFinish();
     sceGuSync(0, 0);
@@ -159,11 +143,101 @@ int render(Player *leftPlayer, Player *rightPlayer, Ball *ball)
     return 0;
 }
 
+int aiPlayerHandler(Player *leftPlayer, Ball *ball)
+{
+
+    if (leftPlayer->y < ball->y)
+    {
+        leftPlayer->y += leftPlayer->speed;
+    }
+    else if (leftPlayer->y > ball->y)
+    {
+        leftPlayer->y -= leftPlayer->speed;
+    }
+}
+
+int handleControls(Player *leftPlayer, Player *rightPlayer, SceCtrlData *pad)
+{
+
+    sceCtrlReadBufferPositive(pad, 1);
+
+    // Exit game using home
+    if (pad->Buttons & PSP_CTRL_HOME)
+    {
+        gameRunning = 0;
+    }
+
+    if (pad->Buttons & PSP_CTRL_TRIANGLE)
+    {
+        rightPlayer->y -= rightPlayer->speed;
+        if (rightPlayer->y - rightPlayer->height / 2.0f < 0.0f)
+        {
+            rightPlayer->y = rightPlayer->height / 2.0f;
+        }
+    }
+    else if (pad->Buttons & PSP_CTRL_CROSS)
+    {
+        rightPlayer->y += rightPlayer->speed;
+        if (rightPlayer->y + rightPlayer->height / 2.0f > SCREEN_H)
+        {
+            rightPlayer->y = SCREEN_H - rightPlayer->height / 2.0f;
+        }
+    }
+
+    if (AI_ENABLED == 0)
+    {
+        if (pad->Buttons & PSP_CTRL_UP)
+        {
+            leftPlayer->y -= leftPlayer->speed;
+            if (leftPlayer->y - leftPlayer->height / 2.0f < 0.0f)
+            {
+                leftPlayer->y = leftPlayer->height / 2.0f;
+            }
+        }
+        else if (pad->Buttons & PSP_CTRL_DOWN)
+        {
+            leftPlayer->y += leftPlayer->speed;
+            if (leftPlayer->y + leftPlayer->height / 2.0f > SCREEN_H)
+            {
+                leftPlayer->y = SCREEN_H - leftPlayer->height / 2.0f;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+int gamePhysics(Ball *ball)
+{
+
+    ball->y += ball->dirY * ball->speed;
+    ball->x += ball->dirX * ball->speed;
+
+    if (ball->y + ball->radius > SCREEN_H)
+    {
+
+        ball->dirY = -ball->dirY;
+    }
+    else if (ball->y - ball->radius < 0)
+    {
+
+        ball->dirY = -ball->dirY;
+    }
+}
+
 int main(int argc, char *argv[])
 {
+
     (void)argc;
     (void)argv;
+    (void)size_font;
 
+    // PSP setup
     sceDisplaySetMode(0, SCREEN_W, SCREEN_H);
     sceGuInit();
     sceGuStart(GU_DIRECT, gu_list);
@@ -174,20 +248,28 @@ int main(int argc, char *argv[])
     sceGuScissor(0, 0, SCREEN_W, SCREEN_H);
     sceGuEnable(GU_SCISSOR_TEST);
     sceGuDisable(GU_DEPTH_TEST);
-    sceGuDisable(GU_TEXTURE_2D);
+    sceGuShadeModel(GU_SMOOTH);
+    sceGuEnable(GU_TEXTURE_2D);
+    sceGuEnable(GU_BLEND);
+    sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    sceGuTexMode(GU_PSM_8888, 0, 0, 0);
+    sceGuTexImage(0, 256, 128, 256, font);
+    sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+    sceGuTexEnvColor(0);
+    sceGuTexOffset(0.0f, 0.0f);
+    sceGuTexScale(1.0f / 256.0f, 1.0f / 128.0f);
+    sceGuTexWrap(GU_REPEAT, GU_REPEAT);
+    sceGuTexFilter(GU_NEAREST, GU_NEAREST);
     sceGuFinish();
     sceGuSync(0, 0);
     sceGuDisplay(GU_TRUE);
-
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_DIGITAL);
 
+    // difficulty handling
     float moveSpeed[] = {2.0f, 2.5f, 3.0f};
     float ballSpeed[] = {3.0f, 3.5f, 4.0f};
-
     int difficulty = 0; // 0: Easy, 1: Medium, 2: Hard
-
-    SceCtrlData pad;
 
     // Initialize controllable player on the right side of the screen
     Player rightPlayer;
@@ -195,7 +277,8 @@ int main(int argc, char *argv[])
     rightPlayer.width = 10.0f;
     rightPlayer.y = SCREEN_H / 2.0f;
     rightPlayer.x = SCREEN_W - rightPlayer.width;
-    rightPlayer.speed = moveSpeed[difficulty];
+    rightPlayer.speed = 2.0f;
+    rightPlayer.score = 0;
 
     // Initialize AI player on the left side of the screen
     Player leftPlayer;
@@ -203,7 +286,8 @@ int main(int argc, char *argv[])
     leftPlayer.width = 10.0f;
     leftPlayer.y = SCREEN_H / 2.0f;
     leftPlayer.x = 0.0f;
-    leftPlayer.speed = moveSpeed[difficulty];
+    leftPlayer.speed = 2.0f;
+    leftPlayer.score = 0;
 
     // Initialize the ball in the center of the screen
     Ball ball;
@@ -217,51 +301,31 @@ int main(int argc, char *argv[])
     ball.color = 0xFFFFFF00;
     ball.segments = 64;
 
+    // input initialization
+    SceCtrlData pad;
+
     // Main game loop
-    while (1)
+    while (gameRunning)
     {
-        // Read the current state of the controls
-        unsigned int b = (sceCtrlReadBufferPositive(&pad, 1) > 0) ? pad.Buttons : 0;
-        if (b & PSP_CTRL_UP)
+
+        // ----- Input reading -----
+        handleControls(&leftPlayer, &rightPlayer, &pad);
+
+        // ----- AI Player -----
+        if (AI_ENABLED == 1)
         {
-            rightPlayer.y -= rightPlayer.speed;
-            if (rightPlayer.y - rightPlayer.height / 2.0f < 0.0f)
-            {
-                rightPlayer.y = rightPlayer.height / 2.0f;
-            }
-        }
-        else if (b & PSP_CTRL_DOWN)
-        {
-            rightPlayer.y += rightPlayer.speed;
-            if (rightPlayer.y + rightPlayer.height / 2.0f > SCREEN_H)
-            {
-                rightPlayer.y = SCREEN_H - rightPlayer.height / 2.0f;
-            }
+            aiPlayerHandler(&leftPlayer, &ball);
         }
 
-        ball.y += ball.dirY * ball.speed;
-        ball.x += ball.dirX * ball.speed;
+        // ----- Physics -----
+        gamePhysics(&ball);
 
-        if (ball.y + ball.radius > SCREEN_H)
-        {
-
-            ball.dirY = -ball.dirY;
-        }
-        else if (ball.y - ball.radius < 0)
-        {
-
-            ball.dirY = -ball.dirY;
-        }
         checkPlayerCollision(&leftPlayer, &rightPlayer, &ball);
 
+        // ----- Render -----
         render(&leftPlayer, &rightPlayer, &ball); // Render the game state
 
-        sceCtrlReadBufferPositive(&pad, 1);
-        if (pad.Buttons & PSP_CTRL_START)
-        {
-            break;
-        }
-        sceKernelDelayThread(16000); // ~16ms
+        // sceKernelDelayThread(16000); // ~16ms per tick
     }
 
     sceGuTerm();
