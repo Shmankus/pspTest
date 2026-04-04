@@ -1,4 +1,4 @@
-TARGET = hello_world_centered
+TARGET = hello_world
 OBJS = src/main.o
 
 INCDIR =
@@ -7,14 +7,13 @@ CXXFLAGS = $(CFLAGS)
 ASFLAGS = $(CFLAGS)
 
 PSP_FW_VERSION = 661
+PSP_LARGE_MEMORY = 0
 
 LIBDIR =
 LDFLAGS =
-LIBS = -lpspdisplay -lpspctrl -lpspkernel
-
+LIBS = -lpspgu -lpspgum
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = Hello World Centered
-MKSFOEXTRA = -d MEMSIZE=0
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
