@@ -135,6 +135,12 @@ int render(Player *leftPlayer, Player *rightPlayer, Ball *ball)
     draw_text(rightScore, ((SCREEN_W - (measure_text_width(rightScore)) / 2.0f)) * .75f, (SCREEN_H - 16) / 2, 0xFFFFFFFF);
     sceGuDisable(GU_TEXTURE_2D); // ends for text
 
+
+    char ballAngle[3];
+    snprintf(ballAngle, sizeof(ballAngle), "%i", ball->dirX / ball->dirY);
+    draw_text(ballAngle, (ball->x, ball->y, 0xFFFFFFFF);
+    sceGuDisable(GU_TEXTURE_2D); // ends for text
+
     sceGuFinish();
     sceGuSync(0, 0);
     sceDisplayWaitVblankStart();
