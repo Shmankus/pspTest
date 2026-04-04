@@ -7,6 +7,14 @@
 #include <math.h>
 #include <stdlib.h>
 
+
+// TO-FIX
+// - Ball can get stuck inside of the rectangle, create a top and bottom collision check
+
+// TO-DO
+// - add text to show score
+
+
 PSP_MODULE_INFO("HelloWorldCentered", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
@@ -29,8 +37,8 @@ typedef struct
 
 typedef struct
 {
-    float x;
     float y;
+    float x;
     float radius;
     float speed;
     float dirX;
@@ -42,6 +50,7 @@ typedef struct
 typedef struct
 {
     float y;
+    float x;
     float height;
     float width;
     float speed;
@@ -74,14 +83,41 @@ static void circle(float cx, float cy, float r, unsigned int color, int segments
                    segments + 2, NULL, v);
 }
 
-int checkPlayerCollision(Player leftPlayer, Player rightPlayer, Ball ball)
+int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
 {
 
+    // left player collision check
+    if (ball->x - ball->radius < 0.0f)
+    {
+        ball->x = SCREEN_W / 2.0f;
+        ball->y = SCREEN_H / 2.0f;
+    }
+    else if ((ball->y + ball->radius > leftPlayer->y - leftPlayer->height / 2.0f) && (ball->y - ball->radius < leftPlayer->y + leftPlayer->height / 2.0f))
+    {
+        if ((ball->x - ball->radius < leftPlayer->x + leftPlayer->width))
+        {
+            ball->dirX = -ball->dirX;
+        }
+    }
+
+    // right player collision check
+    if (ball->x + ball->radius > SCREEN_W)
+    {
+        ball->x = SCREEN_W / 2.0f;
+        ball->y = SCREEN_H / 2.0f;
+    }
+    else if ((ball->y + ball->radius > rightPlayer->y - rightPlayer->height / 2.0f) && (ball->y - ball->radius < rightPlayer->y + rightPlayer->height / 2.0f))
+    {
+        if ((ball->x + ball->radius > rightPlayer->x))
+        {
+            ball->dirX = -ball->dirX;
+        }
+    }
 
     return 0;
 }
 
-int render(Player player, Ball ball)
+int render(Player *leftPlayer, Player *rightPlayer, Ball *ball)
 {
     // Draw every frame and swap buffers
     sceGuStart(GU_DIRECT, gu_list);
@@ -89,32 +125,31 @@ int render(Player player, Ball ball)
     sceGuClear(GU_COLOR_BUFFER_BIT);
 
     // Right side player that has movement functionality
-
-    Vertex *controllablePlayer = (Vertex *)sceGuGetMemory(2 * sizeof(Vertex));
-    controllablePlayer[0].color = 0xFFFF0000;
-    controllablePlayer[0].x = SCREEN_W - (player.width / 2.0f);
-    controllablePlayer[0].y = player.y - (player.height / 2.0f);
-    controllablePlayer[0].z = 0.0f;
-    controllablePlayer[1].color = 0xFFFF0000;
-    controllablePlayer[1].x = SCREEN_W;
-    controllablePlayer[1].y = player.y + player.height / 2.0f;
-    controllablePlayer[1].z = 0.0f;
-    sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, NULL, controllablePlayer);
+    Vertex *controllablePlayerVertices = (Vertex *)sceGuGetMemory(2 * sizeof(Vertex));
+    controllablePlayerVertices[0].color = 0xFFFF0000;
+    controllablePlayerVertices[0].x = rightPlayer->x;
+    controllablePlayerVertices[0].y = rightPlayer->y - (rightPlayer->height / 2.0f);
+    controllablePlayerVertices[0].z = 0.0f;
+    controllablePlayerVertices[1].color = 0xFFFF0000;
+    controllablePlayerVertices[1].x = rightPlayer->x + rightPlayer->width;
+    controllablePlayerVertices[1].y = rightPlayer->y + rightPlayer->height / 2.0f;
+    controllablePlayerVertices[1].z = 0.0f;
+    sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, NULL, controllablePlayerVertices);
 
     // Left side player that will be controlled by an AI
-    Vertex *aiPlayer = (Vertex *)sceGuGetMemory(2 * sizeof(Vertex));
-    aiPlayer[0].color = 0xFFFF0000;
-    aiPlayer[0].x = 0.0f;
-    aiPlayer[0].y = (SCREEN_H / 2.0f - player.height / 2.0f);
-    aiPlayer[0].z = 0.0f;
-    aiPlayer[1].color = 0xFFFF0000;
-    aiPlayer[1].x = player.width / 2.0f;
-    aiPlayer[1].y = (SCREEN_H / 2.0f + player.height / 2.0f);
-    aiPlayer[1].z = 0.0f;
-    sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, NULL, aiPlayer);
+    Vertex *aiPlayerVertices = (Vertex *)sceGuGetMemory(2 * sizeof(Vertex));
+    aiPlayerVertices[0].color = 0xFFFF0000;
+    aiPlayerVertices[0].x = leftPlayer->x;
+    aiPlayerVertices[0].y = (SCREEN_H / 2.0f - leftPlayer->height / 2.0f);
+    aiPlayerVertices[0].z = 0.0f;
+    aiPlayerVertices[1].color = 0xFFFF0000;
+    aiPlayerVertices[1].x = leftPlayer->x + leftPlayer->width;
+    aiPlayerVertices[1].y = (SCREEN_H / 2.0f + leftPlayer->height / 2.0f);
+    aiPlayerVertices[1].z = 0.0f;
+    sceGuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D, 2, NULL, aiPlayerVertices);
 
     // Draw the ball in the center of the screen
-    circle(ball.x, ball.y, ball.radius, ball.color, ball.segments);
+    circle(ball->x, ball->y, ball->radius, ball->color, ball->segments);
 
     sceGuFinish();
     sceGuSync(0, 0);
@@ -154,49 +189,58 @@ int main(int argc, char *argv[])
 
     SceCtrlData pad;
 
-    // Initialize the player in the center of the screen
-    Player player;
-    player.y = SCREEN_H / 2.0f;
-    player.height = 60.0f;
-    player.width = 10.0f;
-    player.speed = moveSpeed[difficulty];
+    // Initialize controllable player on the right side of the screen
+    Player rightPlayer;
+    rightPlayer.height = 60.0f;
+    rightPlayer.width = 10.0f;
+    rightPlayer.y = SCREEN_H / 2.0f;
+    rightPlayer.x = SCREEN_W - rightPlayer.width;
+    rightPlayer.speed = moveSpeed[difficulty];
+
+    // Initialize AI player on the left side of the screen
+    Player leftPlayer;
+    leftPlayer.height = 60.0f;
+    leftPlayer.width = 10.0f;
+    leftPlayer.y = SCREEN_H / 2.0f;
+    leftPlayer.x = 0.0f;
+    leftPlayer.speed = moveSpeed[difficulty];
 
     // Initialize the ball in the center of the screen
     Ball ball;
     ball.x = SCREEN_W / 2.0f;
     ball.y = SCREEN_H / 2.0f;
     ball.radius = 10.0f;
-    ball.speed = ballSpeed[difficulty];
-    ball.dirX = ball.speed * (rand() % 2 == 0) ? -1 : 1;
-    ball.dirY = ball.speed * (rand() % 2 == 0) ? -1 : 1;
+    // ball.speed = ballSpeed[difficulty];
+    ball.speed = 3.0f;
+    ball.dirX = (rand() % 2 == 0) ? -1.0f : 1.0f;
+    ball.dirY = (rand() % 2 == 0) ? -1.0f : 1.0f;
     ball.color = 0xFFFFFF00;
     ball.segments = 64;
 
     // Main game loop
     while (1)
     {
-
         // Read the current state of the controls
         unsigned int b = (sceCtrlReadBufferPositive(&pad, 1) > 0) ? pad.Buttons : 0;
         if (b & PSP_CTRL_UP)
         {
-            player.y -= player.speed;
-            if (player.y - player.height / 2.0f < 0.0f)
+            rightPlayer.y -= rightPlayer.speed;
+            if (rightPlayer.y - rightPlayer.height / 2.0f < 0.0f)
             {
-                player.y = player.height / 2.0f;
+                rightPlayer.y = rightPlayer.height / 2.0f;
             }
         }
         else if (b & PSP_CTRL_DOWN)
         {
-            player.y += player.speed;
-            if (player.y + player.height / 2.0f > SCREEN_H)
+            rightPlayer.y += rightPlayer.speed;
+            if (rightPlayer.y + rightPlayer.height / 2.0f > SCREEN_H)
             {
-                player.y = SCREEN_H - player.height / 2.0f;
+                rightPlayer.y = SCREEN_H - rightPlayer.height / 2.0f;
             }
         }
 
-        ball.y += ball.dirY;
-        ball.x += ball.dirX;
+        ball.y += ball.dirY * ball.speed;
+        ball.x += ball.dirX * ball.speed;
 
         if (ball.y + ball.radius > SCREEN_H)
         {
@@ -208,8 +252,9 @@ int main(int argc, char *argv[])
 
             ball.dirY = -ball.dirY;
         }
+        checkPlayerCollision(&leftPlayer, &rightPlayer, &ball);
 
-        render(player, ball); // Render the game state
+        render(&leftPlayer, &rightPlayer, &ball); // Render the game state
 
         sceCtrlReadBufferPositive(&pad, 1);
         if (pad.Buttons & PSP_CTRL_START)
