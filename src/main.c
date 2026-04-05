@@ -11,16 +11,27 @@
 #include "font.c"
 #include "renderables.c"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 // TO-FIX
 // - Ball can get stuck inside of the rectangle, create a top and bottom collision check
 
 // TO-DO
-// - add an angle on how the ball gets bounces based on how far along the paddle it is
+// - add speed multiplier per ball bounce
+// - add actual difficulty settings
+// - add main menu 
 
 const int AI_ENABLED = 1;
 unsigned int gameRunning = 1;
 
-PSP_MODULE_INFO("HelloWorldCentered", 0, 1, 0);
+
+const int MAX_BOUNCE_ANGLE = 30;
+const float BALL_SPEED_MULTIPLIER = 1.05;
+const float DEFAULT_BALL_SPEED = 3.0f;
+
+PSP_MODULE_INFO("Pong", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
 enum
@@ -38,8 +49,7 @@ typedef struct
     float x;
     float radius;
     float speed;
-    float dirX;
-    float dirY;
+    float angle;
     unsigned int color;
     int segments;
 } Ball;
@@ -51,8 +61,56 @@ typedef struct
     float height;
     float width;
     float speed;
-    int score
+    int score;
 } Player;
+
+float map(float x, float in_min, float in_max, float out_min, float out_max)
+{
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+// TO FIX - RIGHT NOW THE CENTER IS DOING THE HIGH ANGLE CHANGES INSTEAD OF THE EDGES, IT SHOULD BE THE OPPISITE
+float verticalDistanceFromCenter(Player *player, Ball *ball)
+{
+
+    return ball->y - player->y;
+}
+
+// I think this works the way i want it to, edges narrow / widen the angle based on what side the ball is coming from and center will keep ball same angle
+float calculateBallAngle(Player *player, Ball *ball)
+{
+
+    if (ball->angle < 0.0f)
+    {
+        // return (M_PI - ball->angle);
+        if (verticalDistanceFromCenter(player, ball) > 0.0f)
+        {
+
+            return fmod((M_PI - ball->angle) - map(abs(verticalDistanceFromCenter(player, ball)), 0.0f, player->height / 2.0f, 0.0f, (MAX_BOUNCE_ANGLE * M_PI / 180.0f)), 2 * M_PI);
+        }
+        else
+        {
+            return fmod((M_PI - ball->angle) + map(abs(verticalDistanceFromCenter(player, ball)), 0.0f, player->height / 2.0f, 0.0f, (MAX_BOUNCE_ANGLE * M_PI / 180.0f)), 2 * M_PI);
+        }
+    }
+    else if (ball->angle > 0.0f)
+    {
+        // return (M_PI - ball->angle);
+        if (verticalDistanceFromCenter(player, ball) < 0.0f)
+        {
+
+            return fmod((M_PI - ball->angle) + map(abs(verticalDistanceFromCenter(player, ball)), 0.0f, player->height / 2.0f, 0.0f, (MAX_BOUNCE_ANGLE * M_PI / 180.0f)), 2 * M_PI);
+        }
+        else
+        {
+            return fmod((M_PI - ball->angle) - map(abs(verticalDistanceFromCenter(player, ball)), 0.0f, player->height / 2.0f, 0.0f, (MAX_BOUNCE_ANGLE * M_PI / 180.0f)), 2 * M_PI);
+        }
+    }
+    else if (ball->angle == 0.0f)
+    {
+        return (M_PI - ball->angle);
+    }
+}
 
 int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
 {
@@ -60,30 +118,40 @@ int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
     // left player collision check
     if (ball->x - ball->radius < 0.0f)
     {
+        ball->angle = (-45.0f * (2 * (rand() % 4) + 1)) * (M_PI / 180.0);
+        
         ball->x = SCREEN_W / 2.0f;
         ball->y = SCREEN_H / 2.0f;
+        ball->speed = DEFAULT_BALL_SPEED;
         rightPlayer->score++;
     }
     else if ((ball->y + ball->radius > leftPlayer->y - leftPlayer->height / 2.0f) && (ball->y - ball->radius < leftPlayer->y + leftPlayer->height / 2.0f))
     {
         if ((ball->x - ball->radius < leftPlayer->x + leftPlayer->width))
         {
-            ball->dirX = -ball->dirX;
+            ball->x = leftPlayer->x + leftPlayer->width + ball->radius;
+            ball->angle = calculateBallAngle(leftPlayer, ball);
+            ball->speed *= BALL_SPEED_MULTIPLIER;
         }
     }
 
     // right player collision check
     if (ball->x + ball->radius > SCREEN_W)
     {
+        ball->angle = (-45.0f * (2 * (rand() % 4) + 1)) * (M_PI / 180.0);
+
         ball->x = SCREEN_W / 2.0f;
         ball->y = SCREEN_H / 2.0f;
+        ball->speed = DEFAULT_BALL_SPEED;
         leftPlayer->score++;
     }
     else if ((ball->y + ball->radius > rightPlayer->y - rightPlayer->height / 2.0f) && (ball->y - ball->radius < rightPlayer->y + rightPlayer->height / 2.0f))
     {
         if ((ball->x + ball->radius > rightPlayer->x))
         {
-            ball->dirX = -ball->dirX;
+            ball->x = rightPlayer->x - ball->radius;
+            ball->angle = calculateBallAngle(rightPlayer, ball);
+            ball->speed *= BALL_SPEED_MULTIPLIER;
         }
     }
 
@@ -134,9 +202,13 @@ int render(Player *leftPlayer, Player *rightPlayer, Ball *ball)
     snprintf(rightScore, sizeof(rightScore), "%i", rightPlayer->score);
     draw_text(rightScore, ((SCREEN_W - (measure_text_width(rightScore)) / 2.0f)) * .75f, (SCREEN_H - 16) / 2, 0xFFFFFFFF);
 
-    char ballAngle[5];
-    snprintf(ballAngle, sizeof(ballAngle), "%.3f", ball->dirX / ball->dirY);
-    draw_text(ballAngle, (SCREEN_W - measure_text_width(ballAngle)) / 2.0f, (SCREEN_H - 16) / 2, 0xFFFFFFFF);
+    char ballAngle[6];
+    snprintf(ballAngle, sizeof(ballAngle), "%.5f", ball->angle);
+    draw_text(ballAngle, (SCREEN_W - measure_text_width(ballAngle)) / 2.0f, (SCREEN_H - 32) / 2, 0xFFFFFFFF);
+
+    char ballSpeed[6];
+    snprintf(ballSpeed, sizeof(ballSpeed), "%.5f", ball->speed);
+    draw_text(ballSpeed, (SCREEN_W - measure_text_width(ballSpeed)) / 2.0f, (SCREEN_H) / 2, 0xFFFFFFFF);
     sceGuDisable(GU_TEXTURE_2D); // ends for text
 
     sceGuFinish();
@@ -158,6 +230,7 @@ int aiPlayerHandler(Player *leftPlayer, Ball *ball)
     {
         leftPlayer->y -= leftPlayer->speed;
     }
+    return 0;
 }
 
 int handleControls(Player *leftPlayer, Player *rightPlayer, SceCtrlData *pad)
@@ -211,26 +284,22 @@ int handleControls(Player *leftPlayer, Player *rightPlayer, SceCtrlData *pad)
     return 0;
 }
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
 int gamePhysics(Ball *ball)
 {
 
-    ball->y += ball->dirY * ball->speed;
-    ball->x += ball->dirX * ball->speed;
-
+    ball->y += sin(ball->angle) * ball->speed;
+    ball->x += cos(ball->angle) * ball->speed;
     if (ball->y + ball->radius > SCREEN_H)
     {
-
-        ball->dirY = -ball->dirY;
+        ball->y = SCREEN_H - ball->radius;
+        ball->angle = fmod(-ball->angle, 2 * M_PI);
     }
     else if (ball->y - ball->radius < 0)
     {
-
-        ball->dirY = -ball->dirY;
+        ball->y = ball->radius;
+        ball->angle = fmod(-ball->angle, 2 * M_PI);
     }
+    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -289,7 +358,7 @@ int main(int argc, char *argv[])
     leftPlayer.width = 10.0f;
     leftPlayer.y = SCREEN_H / 2.0f;
     leftPlayer.x = 0.0f;
-    leftPlayer.speed = 2.0f;
+    leftPlayer.speed = 1.0f;
     leftPlayer.score = 0;
 
     // Initialize the ball in the center of the screen
@@ -299,8 +368,10 @@ int main(int argc, char *argv[])
     ball.radius = 10.0f;
     // ball.speed = ballSpeed[difficulty];
     ball.speed = 3.0f;
-    ball.dirX = (rand() % 2 == 0) ? -1.0f : 1.0f;
-    ball.dirY = (rand() % 2 == 0) ? -1.0f : 1.0f;
+    // ball.dirX = (rand() % 2 == 0) ? -1.0f : 1.0f;
+    // ball.dirY = (rand() % 2 == 0) ? -1.0f : 1.0f;
+    ball.angle = (45.0f * (2 * (rand() % 4) + 1)) * (M_PI / 180.0);
+
     ball.color = 0xFFFFFF00;
     ball.segments = 64;
 

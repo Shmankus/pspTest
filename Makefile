@@ -1,4 +1,4 @@
-TARGET = hello_world
+TARGET = pong_game
 OBJS = src/main.o src/renderables.o
 
 PSPDEV=$(shell psp-config --pspdev-path)
@@ -14,7 +14,7 @@ LIBDIR = $(PSPDEV)/psp/lib
 LDFLAGS =
 LIBS = -lpspgu -lpspgum
 EXTRA_TARGETS = EBOOT.PBP
-PSP_EBOOT_TITLE = Hello World Centered
+PSP_EBOOT_TITLE = Pong
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
