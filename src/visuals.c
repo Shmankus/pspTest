@@ -1,30 +1,13 @@
-#include <pspkernel.h>
-#include <pspdisplay.h>
-#include <pspctrl.h>
+
 #include <pspgu.h>
 #include <pspgum.h>
 #include <string.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <math.h>
+#include "structs.h"
+#include "visuals.h"
 
-typedef struct
-{
-    float s;
-    float t;
-    unsigned int color;
-    float x;
-    float y;
-    float z;
-} TextVertex;
-
-typedef struct
-{
-    unsigned int color;
-    float x;
-    float y;
-    float z;
-} Vertex;
+#ifndef VISUALS_C
+#define VISUALS_C
 
 static const int font_width_table[128] = {
     10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
@@ -36,7 +19,7 @@ static const int font_width_table[128] = {
     6, 8, 8, 8, 8, 8, 6, 8, 8, 6, 6, 8, 6, 10, 8, 8,
     8, 8, 8, 8, 8, 8, 8, 12, 8, 8, 8, 10, 8, 10, 8, 12};
 
-static int measure_text_width(const char *text)
+int measure_text_width(const char *text)
 {
     int width = 0;
     size_t len = strlen(text);
@@ -54,7 +37,7 @@ static int measure_text_width(const char *text)
     return width;
 }
 
-static void draw_text(const char *text, int x, int y, unsigned int color)
+void draw_text(const char *text, int x, int y, unsigned int color)
 {
     int len = (int)strlen(text);
     if (len <= 0)
@@ -105,7 +88,7 @@ static void draw_text(const char *text, int x, int y, unsigned int color)
 #define M_PI 3.14159265358979323846
 #endif
 
-static void circle(float cx, float cy, float r, unsigned int color, int segments)
+void circle(float cx, float cy, float r, unsigned int color, int segments)
 {
     Vertex *v = (Vertex *)sceGuGetMemory((segments + 2) * sizeof(Vertex));
 
@@ -127,3 +110,4 @@ static void circle(float cx, float cy, float r, unsigned int color, int segments
                    GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D,
                    segments + 2, NULL, v);
 }
+#endif
