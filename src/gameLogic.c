@@ -10,7 +10,6 @@
 #define BALL_SPEED_MULTIPLIER 1.05f
 #define DEFAULT_BALL_SPEED 3.0f
 
-// TO FIX - RIGHT NOW THE CENTER IS DOING THE HIGH ANGLE CHANGES INSTEAD OF THE EDGES, IT SHOULD BE THE OPPISITE
 float verticalDistanceFromCenter(Player *player, Ball *ball)
 {
 
@@ -66,6 +65,8 @@ int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
         ball->y = SCREEN_H / 2.0f;
         ball->speed = DEFAULT_BALL_SPEED;
         rightPlayer->score++;
+        leftPlayer->y = SCREEN_H / 2.0f;
+        rightPlayer->y = SCREEN_H / 2.0f;
     }
     else if ((ball->y + ball->radius > leftPlayer->y - leftPlayer->height / 2.0f) && (ball->y - ball->radius < leftPlayer->y + leftPlayer->height / 2.0f))
     {
@@ -86,6 +87,8 @@ int checkPlayerCollision(Player *leftPlayer, Player *rightPlayer, Ball *ball)
         ball->y = SCREEN_H / 2.0f;
         ball->speed = DEFAULT_BALL_SPEED;
         leftPlayer->score++;
+        leftPlayer->y = SCREEN_H / 2.0f;
+        rightPlayer->y = SCREEN_H / 2.0f;
     }
     else if ((ball->y + ball->radius > rightPlayer->y - rightPlayer->height / 2.0f) && (ball->y - ball->radius < rightPlayer->y + rightPlayer->height / 2.0f))
     {
@@ -107,7 +110,7 @@ int aiPlayerHandler(Player *leftPlayer, Ball *ball)
     {
         leftPlayer->y += leftPlayer->speed;
     }
-    else if (leftPlayer->y > ball->y  && leftPlayer->y - leftPlayer->height / 2.0f > 0)
+    else if (leftPlayer->y > ball->y && leftPlayer->y - leftPlayer->height / 2.0f > 0)
     {
         leftPlayer->y -= leftPlayer->speed;
     }

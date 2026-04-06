@@ -5,9 +5,9 @@
 #include <stdio.h>
 #include <pspctrl.h>
 #include "structs.h"
-
+#define DEFAULT_BALL_SPEED 3.0f
 #define AI_ENABLED 1
-int handleMenuControls(SceCtrlLatch *latchData, GameState *gameState)
+int handleMenuControls(SceCtrlLatch *latchData, GameState *gameState, Ball *ball)
 {
 
     // Selection area
@@ -31,10 +31,13 @@ int handleMenuControls(SceCtrlLatch *latchData, GameState *gameState)
         if (gameState->difficulty > gameState->difficulties[-1])
         {
             gameState->difficulty = 1;
+            ball->speed = DEFAULT_BALL_SPEED;
         }
         else
         {
             gameState->difficulty++;
+            ball->speed = DEFAULT_BALL_SPEED + gameState->difficulty-1;
+            
         }
 
         snprintf(gameState->menuItems[1], sizeof(gameState->menuItems[1]), "Difficulty: %i", gameState->difficulty);

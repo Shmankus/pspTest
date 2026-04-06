@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            handleMenuControls(&latchData, &gameState);
+            handleMenuControls(&latchData, &gameState, &ball);
 
             renderMenu(&pad, &gameState.selectedOption, gameState.menuItems);
         }
